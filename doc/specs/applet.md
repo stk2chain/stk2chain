@@ -99,34 +99,133 @@ STK Menu implements a Text-Based User Interface for:
 					"display_name": "Send ETH",
 					"next_screen": "SendETHScreen"
 				},
-                        "SwapOption": {
-                              "option": "2",
+				"SwapOption": {
+					"option": "2",
 					"display_name": "Swap",
 					"next_screen": "SwapScreen"
 				},
-                        "WithdrawOption": {
+				"WithdrawOption": {
 					"option": "3",
 					"display_name": "Withdraw Cash",
 					"next_screen": "WithdrawScreen"
 				},
-			      "AirtimeOption": {
+				"AirtimeOption": {
 					"option": "4",
 					"display_name": "Buy Airtime",
 					"next_screen": "AirtimeScreen"
-				},
-                        "AccountOption": {
+				}
+				"AccountOption": {
 					"option": "5",
 					"display_name": "My Account",
 					"next_screen": "AccountScreen"
 				},
-                        "BalanceOption": {
+				"BalanceOption": {
 					"option": "6",
-					"display_name": "Balance",
+					"display_name": "Check Balance",
 					"next_screen": "BalanceScreen"
 				},
 			}
-		},
+		}
 }
 ```
 ## USSD Submission
-TODO
+On `processToolkit(...)` execution, the `eSIM Toolkit(eSTK)` Applet builds and sends a `SEND USSD` Proactive Command from the `eUICC` to the `Mobile Equipment (ME/phone)` encoded in `BER-TLV` format.
+
+
+
+```Java
+public class METHApplet extends Applet implements ToolkitInterface, ToolkitConstants {
+
+    public void processToolkit(byte event) throws ToolkitException {
+        
+        // USSD CALL via Proactive Command
+        // Type of proactive command : SEND USSD  => 0x12 
+        // public static final byte PRO_CMD_SEND_USSD = (byte)0x12;
+
+        // Initialize proactive handler
+        proHandler = ProactiveHandlerSystem.getTheHandler();
+
+        // Build Proactive Command  
+        // @type: SEND USSD (0x12)           = 0x12           
+        // @qualifier: the command qualifier
+        // @dstDevice: Network = 0x83
+        // The source device is always the SIM card.
+        // D0 : Proactive Command Tag
+        proHandler.init(PRO_CMD_SEND_USSD, (byte)0x00, DEV_ID_NETWORK);
+
+		...
+
+        // Add USSD String TLV
+        // Format per 3GPP TS 31.111: DCS + USSD string
+        byte dcs = (byte) 0x0F;  // 7-bit default alphabet
+        byte[] fullUssd = new byte[ussdString.length + 1];
+        fullUssd[0] = dcs;
+        Util.arrayCopyNonAtomic(ussdString, (short) 0, fullUssd, (short) 1, (short) ussdString.length);
+
+        // Append Text String TLV
+        proHandler.appendTLV(TAG_TEXT_STRING, fullUssd, (short) 0, (short) fullUssd.length);
+
+        // Send to ME (phone)
+        proHandler.send();
+        
+		...
+    }
+
+
+ }
+```
+
+### Proactive Commands
+Proactive commands in the eSIM Toolkit (STK / USAT) architecture are instructions initiated by the SIM/eSIM (UICC) to the Mobile Equipment (ME) — usually the phone or device — in order to perform actions on behalf of the eSIM, such as displaying text, opening channels, sending messages, USSD etc.
+
+## Technical Specifications
+
+- [ETSI TS 131 111 V18.6.0 (2024-07)](https://www.etsi.org/deliver/etsi_ts/131100_131199/131111/18.06.00_60/ts_131111v180600p.pdf) : 3GPP TS 31.111 (USAT/STK) - Universal Subscriber Identity Module (USIM) Application Toolkit (USAT) Technincal Specification
+<!-- ETSI TS 131 111: 6 Proactive UICC -->
+<!-- **6.4.12 SEND USSD -->
+<!-- ***6.4.12.2 Application Mode -->
+<!-- **6.5 Common elements in proactive UICC commands -->
+<!-- **6.6 Structure of proactive UICC commands -->
+<!-- **6.6.11 SEND USSD -->
+<!-- 8.6 Command details -->
+<!-- 8.17 USSD string -->
+
+- [ETSI TS 123 038 V16.0.0 (2020-07)](https://www.etsi.org/deliver/etsi_ts/123000_123099/123038/16.00.00_60/ts_123038v160000p.pdf) : 3GPP TS 23.038  - 
+Alphabets and language-specific information Technical Specification
+<!-- GSM 03.38: GSM 7-bit default alphabet Technical Specification -->
+<!-- **6.1.2 Character packing -->
+<!-- **6.1.2.3 USSD packing -->
+
+- [ETSI TS 102 223 V17.6.0 (2025-04)](https://www.etsi.org/deliver/etsi_ts/102200_102299/102223/17.06.00_60/ts_102223v170600p.pdf) - Card Application Toolkit (CAT) Technical Specification
+<!-- 4.2 Proactive UICC -->
+<!-- 4.11 Bearer Independent Protocol  -->
+<!-- 5.2 Structure and coding of TERMINAL PROFILE -->
+<!-- 6 Proactive UICC -->
+<!-- **6.4 Proactive UICC commands and procedures -->
+<!-- **6.5 Common elements in proactive UICC commands -->
+<!-- **6.6 Structure of proactive UICC commands -->
+<!-- 9 Tag values -->
+<!-- **9.2 BER-TLV tags in UICC to terminal direction -->
+<!-- **9.3 COMPREHENSION-TLV tags in both directions -->
+<!-- Annex C (normative): Structure of CAT communications -->
+<!-- Annex B (informative): Example of DISPLAY TEXT proactive UICC command -->
+<!-- 8.6 Command details -->
+
+- [ETSI TS 101 220 V18.2.0 (2024-11)](https://www.etsi.org/deliver/etsi_ts/101200_101299/101220/18.02.00_60/ts_101220v180200p.pdf) - ETSI numbering system
+for telecommunication application providers Technical Specification
+<!-- 7 Tag-Length-Value (TLV) data objects -->
+<!-- **7.1.1 COMPREHENSION-TLV tag coding -->
+<!-- **7.2 Assigned TLV tag values -->
+<!-- ***Table 7.17 Card application toolkit templates BER-TLV tag -->
+
+- [ETSI TS 131 115 V18.0.0 (2024-05)](https://www.etsi.org/deliver/etsi_ts/131100_131199/131115/18.00.00_60/ts_131115v180000p.pdf) : 3GPP TS 31.115 - Secured packet structure for (Universal) Subscriber Identity Module (U)SIM Toolkit applications Technical Specification 
+<!-- 6 Implementation for USSD -->
+<!-- Annex A (normative): USSD String format -->
+<!-- **6.1 Structure of the Command Packet contained in a Single
+USSD Message -->
+<!-- **6.2 Structure of the Command Packet contained in concatenated USSD Messages -->
+
+<!--- [ETSI TS 131 102 V18.6.2 (2024-11)](https://www.etsi.org/deliver/etsi_ts/131100_131199/131102/18.06.02_60/ts_131102v180602p.pdf) : 3GPP TS 31.102 Characteristics of the Universal Subscriber Identity Module (USIM) application Technical Specification-->
+
+
+
