@@ -6,13 +6,40 @@ use ussdframework::{
     ScreenType as FrameworkScreenType
 };
 
+// MERGING PRIVATE AND PUBLIC EQUITY CLASS
+// PRIVATE EQUITY PUBLIC OTC ON STERIODS.
+
+// #[table(name = ussd_session)]
+// pub struct USSDSession {
+//     #[primary_key]
+//     sessionId: String,              // sessionId *PK
+//     phoneNumber: String,                  // msisdn/phoneNumber
+//     networkCode: String,            //networkCode
+//     serviceCode: String,            //serviceCode
+//     data: String,                   //data/text
+
+//     current_screen: String,
+//     visited_screens: Vec<String>,
+//     last_interaction_time: Timestamp,
+
+//     error_message: Option<String>,
+//     //displayed: HashMap<String, bool>,
+
+//     end_session: bool,
+//     //language: String,
+
+//     identity: Identity,
+//     online: bool,
+
+//     //position_in_menu
+// }
 #[table(name = ussd_session)]
 pub struct USSDSession {
     #[primary_key]
-    sessionId: String,              // sessionId *PK
-    phoneNumber: String,                  // msisdn/phoneNumber
-    networkCode: String,            //networkCode
-    serviceCode: String,            //serviceCode
+    session_id: String,              // sessionId *PK
+    phone_nunber: String,                  // msisdn/phoneNumber
+    network_code: String,            //networkCode
+    service_code: String,            //serviceCode
     data: String,                   //data/text
 
     current_screen: String,
@@ -183,17 +210,39 @@ pub fn identity_connected(ctx: &ReducerContext) {
 pub fn identity_disconnected(ctx: &ReducerContext) {
     // Called everytime a client disconnects
     // we set online to false
-    log::info!("Client disconnected, {}!", ctx.sender);
+    if let Some(session_retrieved) = ctx.db.ussd_session().identity().find(ctx.sender){
+        ctx.db.ussd_session().update( USSDSession {online:false, ..session_retrieved} );
+        log::info!("Client disconnected, {:?}@{:?}!", ctx.sender, ctx.timestamp);
+    }else {
+        // This branch should be unreachable,
+        // as it doesn't make sense for a client to disconnect without connecting first.
+        log::warn!("Disconnect event for unknown user with identity {:?}@{:?}", ctx.sender, ctx.timestamp);
+    }
 }
 
 
 
-// #[reducer]
-//  pub fn get_or_create_session(ctx: &ReducerContext, sessionId: String, initial_screen: String){
-//     //let retrieved_session = USSDSession::retrieve_session(&request.session_id, &cache);
-//     // Retrieve Session based on sessionID, expect single instance
-//     let session_retrieved = ctx.db.ussd_session().sessionID().find(sessionId);
-//  }
+#[reducer]
+ pub fn get_or_create_session(ctx: &ReducerContext, session_id: String, initial_screen: String){
+    //let retrieved_session = USSDSession::retrieve_session(&request.session_id, &cache);
+    // Retrieve Session based on sessionID, expect single instance
+    // we set online to true
+    if let Some(session_retrieved) = ctx.db.ussd_session().session_id().find(session_id){
+        ctx.db.ussd_session().update( USSDSession {
+            current_screen: initial_screen,
+            online:True,
+            last_interaction_time: ctx.timestamp,
+        });
+
+    }else {
+        ctx.db.ussd_session().insert( USSDSession {
+            session_id: session_id,
+            current_screen: initial_screen,
+            online:True,
+            last_interaction_time: ctx.timestamp,
+        });
+    }
+ }
 
 
 // #[reducer]
@@ -210,11 +259,14 @@ pub fn handle_ussd(ctx: &ReducerContext, sessionId: String, phoneNumber: String,
 
 
     // Load Menus
-    // let menu = ctx.db.ussd_menu().serviceCode().find(serviceCode);
+    let menu = ctx.db.ussd_menu().service_code().find(service_code=serviceCode);
+
+    let screens = ctx.db.ussd_screen().ussd_menu().find(menu.id);
 
 
     //1. Retrieve or Generate Session
-    // let mut session = get_or_create_session(ctx, &sessionId, &initial_screen);
+    let mut session = get_or_create_session(ctx, &sessionId, &initial_screen);
+
     //let mut session = USSDSession::get_or_create_session(request, &initial_screen, session_cache);
     // let retrieved_session = USSDSession::retrieve_session(&request.session_id, &cache);
 
