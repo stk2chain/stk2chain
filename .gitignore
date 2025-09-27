@@ -23,3 +23,29 @@ contracts/docs/
 
 # Dotenv file
 contracts/.env
+
+# Deep folder search
+**/target/
+**/*.rs.bk
+**/*.lock   # optional, depending on project type
+
+# Cargo generated files
+**/*.rs.bk
+working/
+
+# Logs
+*.log
+
+.env
+# IDE/editor temporary files
+*.swp
+*.DS_Store
+
+# Compiled output
+**/target/
+
+# Optional: lock files for library crates (keep for binary/application crates)
+**/Cargo.lock
+
+# Compiled output
+**/target/

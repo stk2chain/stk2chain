@@ -1,11 +1,18 @@
 mod ussdframework;
 
-use spacetimedb::{table, reducer, Table, ReducerContext, Identity, Timestamp, SpacetimeType};
+use spacetimedb::{
+    table, reducer, 
+    Table, ReducerContext, Identity, Timestamp, 
+    SpacetimeType,
+};
+
+use anyhow::Result;
 use ussdframework::{
     USSDMenu as FrameworkMenu,
     ScreenType as FrameworkScreenType
 };
-
+mod reducers;
+pub use reducers::send_eth::send_eth;
 // #[table(name = ussd_session)]
 // pub struct USSDSession {
 //     #[primary_key]
@@ -118,6 +125,51 @@ pub struct USSDMenuItem {
     screen: u64
 }
 
+
+#[derive(SpacetimeType, Debug, Clone, PartialEq, Eq)]
+pub enum SwapStatus {
+    Pending,
+    Processing,
+    Completed,
+    Failed,
+}
+
+#[derive(SpacetimeType, Debug, Clone, PartialEq, Eq)]
+pub enum SwapType {
+    SendEth,
+    TokenSwap,
+    CashOut,
+}
+
+
+#[table(name = swap)]
+pub struct Swap {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    
+    #[index(btree)]
+    pub session_id: String,
+    
+    pub from_address: String,
+    pub to_address: String,
+    pub amount: String, // Store as string to avoid precision issues
+    pub token_in: String, // "ETH", "USDC", etc.
+    pub token_out: String, // "ETH", "USDC", etc.
+    
+    pub status: SwapStatus, // "pending", "processing", "completed", "failed"
+    pub tx_hash: Option<String>, // Ethereum transaction hash once submitted
+    pub gas_price: Option<String>,
+    pub gas_limit: Option<String>,
+    pub nonce: Option<u64>,
+    
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
+    
+    pub error_message: Option<String>, // If failed, store error details
+    pub swap_type: SwapType, // "send_eth", "token_swap", "cash_out", etc.
+}
+
 #[table(name = router_option)]
 pub struct USSDRouterOption {
     router_option: String,
@@ -211,9 +263,12 @@ pub fn identity_connected(ctx: &ReducerContext) {
 pub fn identity_disconnected(ctx: &ReducerContext) {
     // Called everytime a client disconnects
     // we set online to false
+    // Get the current session to continue processing
     if let Some(session_retrieved) = ctx.db.ussd_session().sender().find(ctx.sender){
-        ctx.db.ussd_session().sender().update( USSDSession {online:false, ..session_retrieved} );
-        log::info!("Client disconnected, {:?}@{:?}!", ctx.sender, ctx.timestamp);
+        //ctx.db.ussd_session().sender().update( USSDSession {online:false, ..session_retrieved} );
+        // Basic implementation - just log for now
+        log::info!("Processing USSD for session: {}", session_retrieved.session_id);
+        // log::info!("Client disconnected, {:?}@{:?}!", ctx.sender, ctx.timestamp);
     }else {
         // This branch should be unreachable,
         // as it doesn't make sense for a client to disconnect without connecting first.
@@ -264,10 +319,10 @@ pub fn identity_disconnected(ctx: &ReducerContext) {
 pub fn get_initial_screen(ctx: &ReducerContext) -> String {
     for screen in ctx.db.ussd_screen().iter() {
         if let ScreenType::Initial = screen.screen_type {
-            return screen.name;
+            return screen.name.clone();
         }
     }
-    panic!("No initial screen found!");
+    "InitialScreen".to_string() // Change panic to return default
 }
 
 // #[reducer]
@@ -277,24 +332,24 @@ pub fn get_initial_screen(ctx: &ReducerContext) -> String {
 
 
 #[reducer]
-pub fn handle_ussd(ctx: &ReducerContext, sessionId: String, phoneNumber: String, networkCode: String, serviceCode:String,  text: String){
+pub fn handle_ussd(ctx: &ReducerContext, session_id: String, phone_number: String, network_code: String, service_code:String,  text: String){
 
 
     // log::info!("handle_ussd, {}:{}:{}:{}:{}:{}!", ctx.sender, sessionId, phoneNumber, networkCode, serviceCode, text);
 
 
     // Load Menus
-    if let Some(menu)= ctx.db.ussd_menu().service_code().find(serviceCode.clone()){
-        let screens = ctx.db.ussd_screen().ussd_menu().filter(menu.id);
+    if let Some(menu)= ctx.db.ussd_menu().service_code().find(service_code.clone()){
+        let _screens = ctx.db.ussd_screen().ussd_menu().filter(menu.id);
 
         let initial_screen= get_initial_screen(ctx);
 
         //1. Retrieve or Generate Session
-        let mut session = get_or_create_session(ctx, sessionId.clone(), phoneNumber, networkCode, serviceCode, text, initial_screen);
+        get_or_create_session(ctx, session_id.clone(), phone_number, network_code, service_code, text, initial_screen);
 
     }else {
         // This branch should be unreachable,
-        log::warn!("Unknown Menu serviceCode {}", serviceCode);
+        log::warn!("Unknown Menu serviceCode {}", service_code);
 
     }
 
