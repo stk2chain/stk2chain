@@ -1,6 +1,11 @@
 mod ussdframework;
 
-use spacetimedb::{table, reducer, Table, ReducerContext, Identity, Timestamp, SpacetimeType};
+use spacetimedb::{
+    table, reducer, 
+    Table, ReducerContext, Identity, Timestamp, 
+    SpacetimeType,
+};
+
 use anyhow::Result;
 use ussdframework::{
     USSDMenu as FrameworkMenu,
@@ -120,6 +125,23 @@ pub struct USSDMenuItem {
     screen: u64
 }
 
+
+#[derive(SpacetimeType, Debug, Clone, PartialEq, Eq)]
+pub enum SwapStatus {
+    Pending,
+    Processing,
+    Completed,
+    Failed,
+}
+
+#[derive(SpacetimeType, Debug, Clone, PartialEq, Eq)]
+pub enum SwapType {
+    SendEth,
+    TokenSwap,
+    CashOut,
+}
+
+
 #[table(name = swap)]
 pub struct Swap {
     #[primary_key]
@@ -135,7 +157,7 @@ pub struct Swap {
     pub token_in: String, // "ETH", "USDC", etc.
     pub token_out: String, // "ETH", "USDC", etc.
     
-    pub status: String, // "pending", "processing", "completed", "failed"
+    pub status: SwapStatus, // "pending", "processing", "completed", "failed"
     pub tx_hash: Option<String>, // Ethereum transaction hash once submitted
     pub gas_price: Option<String>,
     pub gas_limit: Option<String>,
@@ -145,7 +167,7 @@ pub struct Swap {
     pub updated_at: Timestamp,
     
     pub error_message: Option<String>, // If failed, store error details
-    pub swap_type: String, // "send_eth", "token_swap", "cash_out", etc.
+    pub swap_type: SwapType, // "send_eth", "token_swap", "cash_out", etc.
 }
 
 #[table(name = router_option)]

@@ -1,5 +1,6 @@
 use spacetimedb::{ReducerContext, reducer};
 use crate::{Swap, USSDSession, ussd_session, swap};
+use crate::{SwapStatus, SwapType};
 use spacetimedb::Table;
 
 /// Validates Ethereum address format
@@ -59,7 +60,7 @@ pub fn send_eth(
         amount: amount.clone(),
         token_in: "ETH".to_string(),
         token_out: "ETH".to_string(),
-        status: "pending".to_string(),
+        status: SwapStatus::Pending,
         tx_hash: None,
         gas_price: None,
         gas_limit: Some("21000".to_string()), // Standard ETH transfer gas limit
@@ -67,7 +68,7 @@ pub fn send_eth(
         created_at: ctx.timestamp,
         updated_at: ctx.timestamp,
         error_message: None,
-        swap_type: "send_eth".to_string(),
+        swap_type: SwapType::SendEth,
     };
     
     // Insert the swap transaction
