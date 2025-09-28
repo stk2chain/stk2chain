@@ -5,12 +5,12 @@
 // };
 
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::collections::HashMap;
 
 // use super::{ussd_service::USSDServiceTrait, USSDRequest, USSDService, USSDSession};
 
 // use super::{ussd_service:: USSDService};
-
 
 // Define types of screens
 #[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
@@ -24,16 +24,22 @@ pub enum ScreenType {
     Quit,
 }
 
+impl fmt::Display for ScreenType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ScreenType::Initial => write!(f, "Initial"),
+            ScreenType::Menu => write!(f, "Menu"),
+            ScreenType::Input => write!(f, "Input"),
+            ScreenType::Function => write!(f, "Function"),
+            ScreenType::Router => write!(f, "Router"),
+            ScreenType::Quit => write!(f, "Quit"),
+        }
+    }
+}
+
 impl ScreenType {
     pub fn to_string(&self) -> String {
-        match self {
-            ScreenType::Initial => "Initial".to_string(),
-            ScreenType::Menu => "Menu".to_string(),
-            ScreenType::Input => "Input".to_string(),
-            ScreenType::Function => "Function".to_string(),
-            ScreenType::Router => "Router".to_string(),
-            ScreenType::Quit => "Quit".to_string(),
-        }
+        format!("{}", self)
     }
 
     pub fn from_string(screen_type: &str) -> ScreenType {

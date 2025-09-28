@@ -202,7 +202,7 @@ pub fn init(ctx: &ReducerContext) {
     // Called when the module is initially published (constructor)
     // Fetch USSD Menu ABI
     let content = include_str!("./data/menu.json");
-    let menu_screens: FrameworkMenu = match serde_json::from_str(&content) {
+    let menu_screens: FrameworkMenu = match serde_json::from_str(content) {
         Ok(m) => m,
         Err(e) => {
             log::error!("Failed to parse ussd menu json: {:?}", e);
@@ -248,7 +248,7 @@ pub fn init(ctx: &ReducerContext) {
                     option: item.option,
                     display_name: item.display_name,
                     next_screen: item.next_screen,
-                    name: name,
+                    name,
                     screen: scrn.id,
                 });
             }
@@ -360,9 +360,9 @@ pub fn get_or_create_session(
     // we set online to true
     if let Some(session_retrieved) = ctx.db.ussd_session().session_id().find(session_id.clone()) {
         ctx.db.ussd_session().session_id().update(USSDSession {
-            phone_number: phone_number,
-            network_code: network_code,
-            service_code: service_code,
+            phone_number,
+            network_code,
+            service_code,
             data: text,
             current_screen: initial_screen,
             sender: ctx.sender,
@@ -372,10 +372,10 @@ pub fn get_or_create_session(
         });
     } else {
         ctx.db.ussd_session().insert(USSDSession {
-            session_id: session_id,
-            phone_number: phone_number,
-            network_code: network_code,
-            service_code: service_code,
+            session_id,
+            phone_number,
+            network_code,
+            service_code,
             data: text,
             current_screen: initial_screen,
             sender: ctx.sender,
