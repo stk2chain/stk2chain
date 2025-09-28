@@ -136,6 +136,19 @@ pub struct USSDRouterOption {
 }
 
 
+#[table(name = ussd_request)]
+pub struct USSDRequest {
+    #[primary_key]
+    id: u64,
+    ussd_menu: u64,
+    session_id: String,
+    raw_data: String,
+    status: String,
+    created_by: Identity,
+    created_at: Timestamp,
+}
+
+
 
 // Initialize SessionID USSD Menu from json
 // USSDMenu: List of USSDScreens
@@ -155,16 +168,27 @@ pub fn init(ctx: &ReducerContext) {
     // Called when the module is initially published (constructor)
     // Fetch USSD Menu ABI
     let content = include_str!("./data/menu.json");
-    let menu_screens: FrameworkMenu = serde_json::from_str(&content).unwrap();
+    let menu_screens: FrameworkMenu = match serde_json::from_str(&content) {
+        Ok(m) => m,
+        Err(e) => {
+            log::error!("Failed to parse ussd menu json: {:?}", e);
+            return;
+        }
+    };
 
     // log::info!("USSDGETH Menu Screens, {:?}!", menu_screens);
 
     // Write to DB: (Insert DB Rows)
     //      1. Insert USSDMenu Row with ID: TODO: Seperate Service Code
-    let menu = ctx.db.ussd_menu().insert(USSDMenu {
-        id: 0,
-        service_code: "*4337#".to_string(),
-    });
+    // If the menu already exists (re-publish or re-init) reuse it instead of inserting
+    let menu = if let Some(existing) = ctx.db.ussd_menu().service_code().find("*4337#".to_string()) {
+        existing
+    } else {
+        ctx.db.ussd_menu().insert(USSDMenu {
+            id: 0,
+            service_code: "*4337#".to_string(),
+        })
+    };
 
     //      2. Insert USSDScreen Rows linked to USSD Menu(ServiceCode)
     for (index, (name, screen)) in menu_screens.menus.into_iter().enumerate(){
@@ -208,14 +232,30 @@ pub fn init(ctx: &ReducerContext) {
     }
     //      4. Insert Function Screen services
     for (name, service) in menu_screens.services.into_iter() {
-            ctx.db.ussd_service().insert(USSDServiceRow {
-                id: 0,
-                ussd_menu: menu.id,
-                name: name,
-                function_name: service.function_name,
-                function_url: service.function_url,
-                data_key: service.data_key,
-            });
+        // defensive: ensure function_name and data_key exist
+        if service.function_name.trim().is_empty() || service.data_key.trim().is_empty() {
+            log::warn!("Skipping service {} due to missing function_name or data_key", name);
+            continue;
+        }
+
+        // Avoid primary-key collisions by allocating a new id based on the current max id
+        let mut max_service_id: u64 = 0;
+        for s in ctx.db.ussd_service().iter() {
+            if s.id > max_service_id {
+                max_service_id = s.id;
+            }
+        }
+        let new_service_id = max_service_id + 1;
+
+        // Directly insert, since catch_unwind cannot be used with &ReducerContext
+        ctx.db.ussd_service().insert(USSDServiceRow {
+            id: new_service_id,
+            ussd_menu: menu.id,
+            name: name.clone(),
+            function_name: service.function_name.clone(),
+            function_url: service.function_url.clone(),
+            data_key: service.data_key.clone(),
+        });
     }
     log::info!("USSDGETH Ininialized by, {}!", ctx.sender);
 }
@@ -323,7 +363,65 @@ pub fn handle_ussd(ctx: &ReducerContext, sessionId: String, phoneNumber: String,
         let initial_screen= get_initial_screen(ctx);
 
         //1. Retrieve or Generate Session
-        let mut session = get_or_create_session(ctx, sessionId.clone(), phoneNumber, networkCode, serviceCode, text, initial_screen);
+        get_or_create_session(ctx, sessionId.clone(), phoneNumber, networkCode, serviceCode, text.clone(), initial_screen.clone());
+
+        // fetch the session we just created/updated so we can inspect current_screen
+        let session = match ctx.db.ussd_session().session_id().find(sessionId.clone()) {
+            Some(s) => s,
+            None => {
+                log::error!("Failed to retrieve session after create for {}", sessionId);
+                return;
+            }
+        };
+
+        // If the current screen is a Function screen or has a function, enqueue a USSDRequest
+        // find the screen definition
+        let mut screen_opt: Option<USSDScreen> = None;
+        for s in ctx.db.ussd_screen().iter() {
+            if s.name == session.current_screen {
+                screen_opt = Some(s);
+                break;
+            }
+        }
+
+        if let Some(screen_def) = screen_opt {
+            if let ScreenType::Function = screen_def.screen_type {
+                // determine function name
+                if let Some(func_name) = screen_def.function.clone() {
+                    // find service by name or data_key
+                    let mut svc_opt = None;
+                    for svc in ctx.db.ussd_service().iter() {
+                        if svc.name == func_name || svc.data_key == func_name || svc.function_name == func_name {
+                            svc_opt = Some(svc);
+                            break;
+                        }
+                    }
+
+                    if let Some(svc) = svc_opt {
+                        // allocate id for new request
+                        let mut max_req_id: u64 = 0;
+                        for r in ctx.db.ussd_request().iter() {
+                            if r.id > max_req_id { max_req_id = r.id }
+                        }
+                        let new_req_id = max_req_id + 1;
+
+                        ctx.db.ussd_request().insert(USSDRequest {
+                            id: new_req_id,
+                            ussd_menu: svc.ussd_menu,
+                            session_id: session.session_id.clone(),
+                            raw_data: text.clone(),
+                            status: "queued".to_string(),
+                            created_by: ctx.sender,
+                            created_at: ctx.timestamp,
+                        });
+
+                        log::info!("Enqueued USSDRequest {} for service {}", new_req_id, svc.name);
+                    } else {
+                        log::warn!("No service found for function {}", func_name);
+                    }
+                }
+            }
+        }
 
     }else {
         // This branch should be unreachable,
@@ -359,4 +457,12 @@ pub fn handle_ussd(ctx: &ReducerContext, sessionId: String, phoneNumber: String,
 
 
 
+}
+
+
+// Stub reducer for send_eth — real implementation to be provided in the contracts workstream
+#[spacetimedb::reducer]
+pub fn send_eth(ctx: &ReducerContext, to: String, amount: String) {
+    log::info!("stub send_eth called by {:?}: to={}, amount={}", ctx.sender, to, amount);
+    // For now we just log and return. The real reducer will perform signing/sending.
 }
