@@ -1,24 +1,26 @@
-
+use dotenv::dotenv;
+use std::{env, net::SocketAddr};
 use axum::{
     extract::Form,
     response::{IntoResponse, Response},
     routing::post,
     Router,
+    Json,
 };
 use serde::Deserialize;
-use tokio::net::TcpListener;
+// use tokio::net::TcpListener;
 use reqwest::Client;
 use serde_json::Value;
 
 
-
 // --- Form payload from Africa's Talking ---
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct UssdRequest {
-    sessionId: String,
-    serviceCode: String,
-    phoneNumber: String,
-    networkCode: String,
+    session_id: String,
+    service_code: String,
+    phone_number: String,
+    network_code: String,
     text: String,
 }
 
@@ -26,13 +28,14 @@ struct UssdRequest {
 
 
 // --- Handler ---
+#[allow(dead_code)]
 async fn ussd_handler(Form(payload): Form<UssdRequest>) -> Response {
     // Build JSON payload for SpaceTimeDB reducer
     let json_payload = serde_json::json!({
-        "sessionId": payload.sessionId,
-        "phoneNumber": payload.phoneNumber,
-        "networkCode": payload.networkCode,
-        "serviceCode": payload.serviceCode,
+        "sessionId": payload.session_id,
+        "phoneNumber": payload.phone_number,
+        "networkCode": payload.network_code,
+        "serviceCode": payload.service_code,
         "text": payload.text,
     });
 
@@ -40,11 +43,14 @@ async fn ussd_handler(Form(payload): Form<UssdRequest>) -> Response {
 
         // Call SpaceTimeDB reducer over HTTP (assuming reducer is exposed at /call/handle_ussd)
     let client = Client::new();
-    let spacetime_url = "http://127.0.0.1:3000/v1/database/gateway/call/handle_ussd"; // adjust for your SpacetimeDB instance
+    //let spacetime_url = "http://127.0.0.1:3000/v1/database/gateway/call/handle_ussd"; // adjust for your SpacetimeDB instance
+    //let spacetime_sql_url = "http://127.0.0.1:3000/v1/database/gateway/sql";
 
-    let spacetime_sql_url = "http://127.0.0.1:3000/v1/database/gateway/sql";
+    let spacetime_url = std::env::var("SPACETIME_API_URL").unwrap() + "/call/handle_ussd";
+    let spacetime_sql_url = std::env::var("SPACETIME_API_URL").unwrap() + "/sql";
+    let token = std::env::var("SPACETIME_AUTH_TOKEN").unwrap();
 
-    let response = client.post(spacetime_url).json(&json_payload).send().await;
+    let _response = client.post(spacetime_url).json(&json_payload).send().await;
 
     let sql_query = format!(
         "SELECT s.text \
@@ -52,12 +58,12 @@ async fn ussd_handler(Form(payload): Form<UssdRequest>) -> Response {
         JOIN ussd_screen AS s \
         ON sess.current_screen = s.name \
         WHERE sess.session_id = '{}';",
-        payload.sessionId
+        payload.session_id
     );
 
 
     let rpl = client.post(spacetime_sql_url)
-    .bearer_auth("eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.eyJoZXhfaWRlbnRpdHkiOiJjMjAwMWRkZDAwN2FhMzk2OGY5OTNjYTgzNGQzNzE1YzkzMjE5ZjkyMWI5NmI0OWMxMzQ5OTQxMjVjOTQ5OTBlIiwic3ViIjoiOTFjYjQ4MmEtNjc0ZC00M2I2LTk2YjgtYjUwZGUzMWI3MzRhIiwiaXNzIjoibG9jYWxob3N0IiwiYXVkIjpbInNwYWNldGltZWRiIl0sImlhdCI6MTc1ODIzNTkxOCwiZXhwIjpudWxsfQ.DtxquimduUhLhrnjc4LBpIMXR_Xbw7rQ4m1xTiQrKLGnKM-f9D6sR7ACYzmWX8hQ_mRjJbK9awGxBlS2gb4haQ") // load from creds
+    .bearer_auth(token) // load from creds
     .header("Content-Type", "text/plain") // 👈 tell it this is raw SQL
     .body(sql_query) // 👈 just the SQL text
     .send()
@@ -87,12 +93,54 @@ async fn ussd_handler(Form(payload): Form<UssdRequest>) -> Response {
 
 // --- Main server ---
 #[tokio::main]
-async fn main() {
-    let app = Router::new().route("/ussd", post(ussd_handler));
+async fn main() -> anyhow::Result<()> {
+    // Load environment variables from .env
+    dotenv().ok();
 
-    let addr = "0.0.0.0:8080";
-    let listener = TcpListener::bind(addr).await.unwrap();
-    println!("USSD bridge running at http://{}", addr);
+    // Read env vars
+    let spacetime_api = env::var("SPACETIME_API_URL")
+        .expect("SPACETIME_API_URL must be set in .env");
+    let spacetime_token = env::var("SPACETIME_AUTH_TOKEN")
+        .expect("SPACETIME_AUTH_TOKEN must be set in .env");
+    let port: u16 = env::var("USSD_PORT")
+        .unwrap_or_else(|_| "8080".into())
+        .parse()
+        .expect("USSD_PORT must be a valid number");
 
-    axum::serve(listener, app).await.unwrap();
+    // Build URLs
+    let spacetime_url = format!("{}/call/handle_ussd", spacetime_api);
+    let _spacetime_sql_url = format!("{}/sql", spacetime_api);
+
+    // Prepare HTTP client with bearer token
+    let client = Client::builder()
+        .build()?;
+
+    // Example: store client & token in app state
+    let app = Router::new()
+    .route("/ussd", post(move |Json(body): Json<Value>| {
+        let client = client.clone();
+        let spacetime_url = spacetime_url.clone();
+        let spacetime_token = spacetime_token.clone();
+        async move {
+            let res = client
+                .post(&spacetime_url)
+                .bearer_auth(&spacetime_token)
+                .json(&body)
+                .send()
+                .await
+                .map_err(|e| format!("Error: {:?}", e))?;
+
+            Ok::<_, String>(res.text().await.unwrap_or_default())
+        }
+    }));
+
+    // Start server
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    println!("USSD server running on http://{}", addr);
+
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, app.into_make_service()).await?;
+
+    Ok(())
 }
+
