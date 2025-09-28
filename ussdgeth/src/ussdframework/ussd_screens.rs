@@ -5,8 +5,8 @@
 // };
 
 use serde::{Deserialize, Serialize};
-use std::fmt;
 use std::collections::HashMap;
+use std::fmt;
 
 // use super::{ussd_service::USSDServiceTrait, USSDRequest, USSDService, USSDSession};
 
