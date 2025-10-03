@@ -1,0 +1,70 @@
+
+# ----- OS / Editor -----
+.DS_Store
+Thumbs.db
+Desktop.ini
+*~
+*.swp
+.vscode/
+.idea/
+*.iml
+
+# ----- Python -----
+# Virtualenvs
+/.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.cache/
+dist/
+build/
+pip-wheel-metadata/
+*.egg-info/
+
+# ----- Rust / Cargo -----
+# Ignore build artifacts for any workspace crate
+**/target/
+**/debug/
+**/release/
+# Optional: ignore per-crate Cargo.lock if you prefer generated locks not committed
+**/Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# ----- Node -----
+node_modules/
+npm-debug.log*
+yarn-error.log
+
+# ----- Environment / secrets -----
+.env
+.env.*
+secrets/
+*.pem
+*.key
+
+# ----- Logs and coverage -----
+*.log
+logs/
+.coverage
+coverage/
+htmlcov/
+
+# ----- WebAssembly / build artifacts -----
+*.wasm
+*.wat
+
+# ----- SpacetimeDB / module artifacts -----
+.spacetime
+
+# ----- Contracts / Foundry -----
+contracts/cache/
+contracts/out/
+contracts/broadcast/
+contracts/docs/
+contracts/.env
+
+# Keep README and other top-level docs tracked; ignore editor temp files only

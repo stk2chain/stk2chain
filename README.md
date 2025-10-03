@@ -1,141 +1,70 @@
-#  A GSM-Based Protocol for Expanding Blockchain Accessibility
----
+<img src="./doc/Mobile_ETH.png" />
 
-STKS2Chain is a protocol designed to `bridge GSM technologies` with `blockchain systems`. It leverages the ubiquitous nature of `SIM cards` and `SMS messaging` to enable seamless `transactions`, `wallet management`, and `smart contract interactions` `without requiring an internet connection`. At its core, STK2Chain allows users to perform blockchain-based operations via familiar mobile interfaces such as STK menus, making blockchain more accessible to underserved demographics and areas with limited internet access.
+# Mobile ETH Specifications
 
----
+<!-- markdownlint-disable-next-line MD036 -->
 
+**STK2ETH: An Account Abstraction eSIM ToolKit *(eSTK)* Wallet that Relays User Transactions over USSD. *(No internet required)*.**
+<!--**STK2ETH: Send ETH *(No internet required)*.**-->
 
+This doc specifies the STK2ETH protocol, including the USSD-ETH Gateway (short: *4337#), a USSD gateway enabling offline User Transaction relays for AA wallets.
+- <details><summary>System Schematics</summary>
+    <img src="./doc/System_Schematics-2025-06-30-2208.excalidraw.png" />
 
+## Protocol
 
-### How it works
-```mermaid
-
-graph LR
-  A(Start)
-
-    A[STK Menu] --> B["GSM Tower Network
-    (Carrier BTS)"]
-    B --> C["STK2Chain Middleware
-    (ERC-4337 Bundler)"]
-    C --> D["Ethereum Node
-    (ERC-4337 EntryPoint)"]
-    D -->|TX Hash| C
-    C -->|SMS Confirm| A
-```
-
----
-
-### eSIM Profile Architecture
-```
-┌───────────────────────────┐
-│   eSIM Profile Elements   │
-│───────────────────────────│
-│  • eUICC Network Config   │
-│  • STK Interface          │
-│    └ Java Card Applet     │
-│  • HD Wallet [stk2wallet] │
-└───────────────────────────┘
+- [**Java Card Applet (eSTK)**](./doc/specs/applet.md) - The STK2ETH Java Card Applet.
+- [**USSD-ETH Gateway (ussdgeth)**](./doc/specs/gateway.md) - The STK2ETH USSD-ETH Gateway.
+- [**AA Smart Contracts**](./doc/specs/contracts.md) - The STK2ETH Account Abstraction Smart Contracts.
 
 
+## eSIM Technical Specifications
 
-┌──────────────────────────────┐
-│       eSIM Profile (TEE)     │
-│──────────────────────────────│
-│ 1. eUICC (Secure Element)    │ ← Hardware root of trust
-│ 2. Java Card Applet          │ ← Isolated execution
-│ 3. ERC-4337 Wallet Logic     │ ← Code integrity
-└──────────────────────────────┘
-```
----
+- [ETSI TS 131 111 V18.6.0 (2024-07)](https://www.etsi.org/deliver/etsi_ts/131100_131199/131111/18.06.00_60/ts_131111v180600p.pdf) : 3GPP TS 31.111 (USAT/STK) - Universal Subscriber Identity Module (USIM) Application Toolkit (USAT) Technincal Specification
+<!-- ETSI TS 131 111: 6 Proactive UICC -->
+<!-- **6.4.12 SEND USSD -->
+<!-- ***6.4.12.2 Application Mode -->
+<!-- **6.5 Common elements in proactive UICC commands -->
+<!-- **6.6 Structure of proactive UICC commands -->
+<!-- **6.6.11 SEND USSD -->
+<!-- 8.6 Command details -->
+<!-- 8.17 USSD string -->
 
-| Chain | Implementation |
-|-------|----------------|
-|Ethereum| [STK2ETH](./doc/SPEC.md)|
+- [ETSI TS 123 038 V16.0.0 (2020-07)](https://www.etsi.org/deliver/etsi_ts/123000_123099/123038/16.00.00_60/ts_123038v160000p.pdf) : 3GPP TS 23.038  - 
+Alphabets and language-specific information Technical Specification
+<!-- GSM 03.38: GSM 7-bit default alphabet Technical Specification -->
+<!-- **6.1.2 Character packing -->
+<!-- **6.1.2.3 USSD packing -->
 
+- [ETSI TS 102 223 V17.6.0 (2025-04)](https://www.etsi.org/deliver/etsi_ts/102200_102299/102223/17.06.00_60/ts_102223v170600p.pdf) - Card Application Toolkit (CAT) Technical Specification
+<!-- 4.2 Proactive UICC -->
+<!-- 4.11 Bearer Independent Protocol  -->
+<!-- 5.2 Structure and coding of TERMINAL PROFILE -->
+<!-- 6 Proactive UICC -->
+<!-- **6.4 Proactive UICC commands and procedures -->
+<!-- **6.5 Common elements in proactive UICC commands -->
+<!-- **6.6 Structure of proactive UICC commands -->
+<!-- 9 Tag values -->
+<!-- **9.2 BER-TLV tags in UICC to terminal direction -->
+<!-- **9.3 COMPREHENSION-TLV tags in both directions -->
+<!-- Annex C (normative): Structure of CAT communications -->
+<!-- Annex B (informative): Example of DISPLAY TEXT proactive UICC command -->
+<!-- 8.6 Command details -->
 
-<!--
+- [ETSI TS 101 220 V18.2.0 (2024-11)](https://www.etsi.org/deliver/etsi_ts/101200_101299/101220/18.02.00_60/ts_101220v180200p.pdf) - ETSI numbering system
+for telecommunication application providers Technical Specification
+<!-- 7 Tag-Length-Value (TLV) data objects -->
+<!-- **7.1.1 COMPREHENSION-TLV tag coding -->
+<!-- **7.2 Assigned TLV tag values -->
+<!-- ***Table 7.17 Card application toolkit templates BER-TLV tag -->
 
+- [ETSI TS 131 115 V18.0.0 (2024-05)](https://www.etsi.org/deliver/etsi_ts/131100_131199/131115/18.00.00_60/ts_131115v180000p.pdf) : 3GPP TS 31.115 - Secured packet structure for (Universal) Subscriber Identity Module (U)SIM Toolkit applications Technical Specification 
+<!-- 6 Implementation for USSD -->
+<!-- Annex A (normative): USSD String format -->
+<!-- **6.1 Structure of the Command Packet contained in a Single
+USSD Message -->
+<!-- **6.2 Structure of the Command Packet contained in concatenated USSD Messages -->
 
-The building block fo stk2chain is the eSIM Profile that can either be burned int a UICC (SIM Card) or used on an eUICC compitible device via Remote Provisioning (Airdrop)
-
-[ eSIM Profile ]
-================
-	+ eUICC Network Configurations
-	+ STK Interface
-		+ Javacard Applet
-	+ eUICC HD Wallet
-		+ stk2wallet
-
-
-The eSIM Profile IMSI is a CREATE2 Wallet Smart Contract address generated by ERC-4337 Compliant Smart Contract
-and Remote SIM Provisioning is done via an AirDrop
-
-```markdown
-# SMS2Chain: Blockchain via SMS/STK Menus (No Internet Needed)
-*A first-principles protocol for 3B+ feature phone users*
-
-
-## :triangular_flag_on_post: Why This Exists
-**Problem**: 50% of humanity can't access blockchain due to:
-1. No internet connectivity
-2. Complex wallet interfaces
-3. Smartphone dependency
-
-**Solution**:
-- Perform Ethereum transactions via basic SMS/STK menus
-- eSIM acts as hardware wallet (bank-grade security)
-- Works on any $2 phone
-
-
-## :gear: Atomic Components
-
-### Key Innovations
-1. **CREATE2 Wallet Address**
-   - IMSI number → ERC-4337 smart contract address
-   - `0xIMSI = keccak256(imsi)[12:]`
-2. **Airdrop Provisioning**
-   ```solidity
-   // Deploy wallet contract for new SIM
-   function airDropSIM(bytes memory imsi) external {
-       address wallet = CREATE2(imsi, "stk2wallet");
-       emit WalletCreated(imsi, wallet);
-   }
-   ```
-3. **STK Menu Flow**
-   ```
-   *384# → Send ETH → Enter Amount → Confirm → TX mined
-   ```
+<!--- [ETSI TS 131 102 V18.6.2 (2024-11)](https://www.etsi.org/deliver/etsi_ts/131100_131199/131102/18.06.02_60/ts_131102v180602p.pdf) : 3GPP TS 31.102 Characteristics of the Universal Subscriber Identity Module (USIM) application Technical Specification-->
 
 
-
-## :test_tube: How It Works
-1. **User** sends STK TX via USSD menu
-2. **Carrier** routes request to STK2Chain middleware
-3. **Middleware** converts to Ethereum TX:
-   - Verifies SIM signature (Java Card Applet)
-   - Broadcasts via decentralized node network
-4. **Blockchain** processes TX → Confirmation SMS sent
-
-
-
-## :rocket: Get Started
-```bash
-git clone https://github.com/stk2chain/core
-cd core && make testnet
-```
-**Test**: Send 0.001 ETH via STK menu simulator:
-`make send-eth to=0x... amount=0.001`
-
----
-
-## :handshake: Why Build This
-| **Feature**      | **Legacy Systems** | **SMS2Chain**       |
-|-------------------|--------------------|---------------------|
-| Internet Required | Yes                | **No**              |
-| Hardware Cost     | $500+ smartphone  | **$2 SIM card**     |
-| Tx Speed          | 15 sec (L1)       | **3 sec (SMS)**     |
-
-**Join us**: [Contribution Guide](CONTRIBUTE.md) | *"Be the compiler"*
-```
--->
